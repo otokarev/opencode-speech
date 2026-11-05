@@ -1,27 +1,33 @@
 # opencode-speech
 
-Speech-to-text (STT) voice input for [OpenCode](https://opencode.ai) v2 — a plugin that records
-audio from the microphone, transcribes it **locally** with
-[whisper.cpp](https://github.com/ggml-org/whisper.cpp), and sends the text straight into the
-current session.
+Voice input and output for [OpenCode](https://opencode.ai) v2 — a plugin that records audio from the
+microphone, transcribes it **locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp),
+sends the text straight into the current session, and can read the assistant's replies aloud with
+[piper](https://github.com/rhasspy/piper).
 
-- **Input only (STT).** There is no read-aloud (TTS) here.
-- **Local and private.** Transcription runs on your machine — nothing leaves for the cloud, and
+- **Speech-to-text (STT):** `Ctrl+R` records, whisper transcribes locally, the text goes straight
+  into the session.
+- **Text-to-speech (TTS):** the last reply is spoken aloud via piper — pure TypeScript, no Python.
+- **Local and private.** Both directions run on your machine — nothing leaves for the cloud, and
   there is no LLM normalization pass.
-- **Russian out of the box** (the `small` model — the speed/accuracy sweet spot); the language is
-  configurable in `tui.ts`.
+- **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot; the
+  language is configurable in `tui.ts`).
 
 ## How it works
 
-`Ctrl+R` → `parecord` records 16 kHz mono → `whisper-cli` transcribes (`-l ru`, 8 threads) → the
-text goes straight into the session. Stopping is manual (press `Ctrl+R` again): silence auto-stop is
-intentionally disabled because, in a noisy room, it chops phrases on micro-pauses.
+- **STT:** `Ctrl+R` → `parecord` records 16 kHz mono → `whisper-cli` transcribes (`-l ru`, 8 threads)
+  → the text goes straight into the session. Stopping is manual (press `Ctrl+R` again): silence
+  auto-stop is intentionally disabled because, in a noisy room, it chops phrases on micro-pauses.
+- **TTS:** on `session.execution.succeeded`, the last assistant reply is cleaned of markdown, cut to
+  the first `N` sentences, and piped through `piper` into `aplay`. Enabled via `options.tts` (see
+  [Configuration](#configuration)).
 
 ## Requirements
 
 - **Linux** with PulseAudio (Ubuntu/Debian tested; WSL2 — see below).
 - **OpenCode ≥ 2.2** (the plugin targets the v2 TUI API; tested on 2.2.5).
 - `sudo` to install system packages (one time only).
+- **For TTS:** the `piper` binary + at least one Russian voice (see [TTS setup](#tts-setup)).
 
 ## Installation
 
@@ -34,12 +40,13 @@ cd opencode-speech
 `install.sh` does everything itself and is idempotent (safe to run again):
 
 1. installs system packages: `sox`, `pulseaudio-utils` (provides `parecord`), `cmake`,
-   `build-essential`;
+   `build-essential`, `alsa-utils` (`aplay`);
 2. builds `whisper-cli` from source into `~/.local/bin/whisper-cli`
    (it is not packaged for Ubuntu's apt — building from source is the only sensible route);
 3. downloads the `ggml-small.bin` model (~466 MB) into `~/.local/share/whisper-cpp/`;
-4. registers the plugin in `~/.config/opencode/cli.json` and frees the `Ctrl+R` hotkey
-   (by default it is taken by session rename).
+4. installs the `piper` binary and the `ru_RU-irina-medium` voice (see [TTS setup](#tts-setup));
+5. registers the plugin in `~/.config/opencode/cli.json` (with an `options.tts` block, TTS off by
+   default) and frees the `Ctrl+R` hotkey (by default it is taken by session rename).
 
 After installing, **restart opencode** and press `Ctrl+R` in the TUI.
 
@@ -68,7 +75,19 @@ Then in `~/.config/opencode/cli.json`:
 ```json
 {
   "keybinds": { "session.rename": "none" },
-  "plugins": [ "/absolute/path/to/opencode-speech/plugin" ]
+  "plugins": [
+    {
+      "package": "/absolute/path/to/opencode-speech/plugin",
+      "options": {
+        "tts": {
+          "voice": "irina",
+          "speed": 1.0,
+          "sentences": 2,
+          "enabled": true
+        }
+      }
+    }
+  ]
 }
 ```
 
@@ -92,6 +111,68 @@ defaults.
 |---|---|---|
 | `whisper-cli` binary | `OPENCODE_STT_WHISPER_CLI` | `~/.local/bin/whisper-cli` |
 | models directory | `OPENCODE_STT_MODELS_DIR` | `~/.local/share/whisper-cpp` |
+| piper directory (TTS) | `OPENCODE_TTS_PIPER_DIR` | `~/.local/share/piper` |
+
+## Configuration
+
+TTS is opt-in and configured in the plugin's `options.tts` block in `cli.json`:
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | turn TTS on/off |
+| `voice` | `"irina"` | piper voice name → `ru_RU-<voice>-medium.onnx` |
+| `speed` | `1.0` | playback speed (≥ 0.1); mapped to piper's `--length_scale` as `1/speed` |
+| `sentences` | `2` | how many of the first sentences of the reply to read |
+
+## TTS setup
+
+TTS depends on two things that must be installed per-machine (they are binaries/models, not
+committed to this repo): the `piper` binary and a Russian voice. Both go under `~/.local/share/piper/`
+by default (override with `OPENCODE_TTS_PIPER_DIR`).
+
+### 1. piper binary (no package manager — a release tarball)
+
+piper ships as a prebuilt tarball from GitHub Releases, not an apt/rpm package. Download and unpack
+it — the archive already contains a `piper/` directory, so extract straight into the target:
+
+```bash
+mkdir -p ~/.local/share/piper
+curl -fL https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.tar.gz \
+  | tar xz -C ~/.local/share/piper
+```
+
+This yields `~/.local/share/piper/piper/piper` (the executable) alongside its bundled libraries
+(`libonnxruntime.so`, `libespeak-ng.so`, `espeak-ng-data/`) and `piper_phonemize`. The plugin launches
+`~/.local/share/piper/piper/piper` and relies on those sibling libraries — do not move the binary out of
+that folder.
+
+> The tarball retains the `piper/` directory when extracted, so extract into `~/.local/share/piper`
+> (one level up), **not** into `~/.local/share/piper/piper`. For other architectures pick
+> `piper_arm64.tar.gz` or `piper_armv7.tar.gz` from the same release. Note: v1.2.0's `espeak-ng` data
+> lives inside the tarball; `piper_phonemize` is a bundled helper, not a system package.
+
+### 2. Russian voice
+
+```bash
+curl -fL -o ~/.local/share/piper/ru_RU-irina-medium.onnx \
+  https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx
+curl -fL -o ~/.local/share/piper/ru_RU-irina-medium.onnx.json \
+  https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx.json
+```
+
+Both files are required: the `.onnx` is the model, the `.onnx.json` carries the sample rate that the
+plugin reads to feed `aplay`. Configure the matching voice with `"voice": "piper:irina"`.
+
+### 3. aplay (player)
+
+TTS plays through `aplay` from the `alsa-utils` package:
+
+```bash
+sudo apt-get install -y alsa-utils
+```
+
+The TTS pipeline is pure TypeScript — the plugin spawns the native `piper` binary and `aplay`, with no
+Python anywhere in the TTS path.
 
 ## Model selection
 
@@ -118,6 +199,7 @@ bounded by **threads** (`-t 8` is already set), not by the model.
 | `whisper-cli: command not found` | binary not on `PATH` | add `~/.local/bin` to `PATH` or set `OPENCODE_STT_WHISPER_CLI` |
 | "Model not found" | models directory is empty | download a model or set `OPENCODE_STT_MODELS_DIR` |
 | plugin did not load | TUI not restarted after editing `cli.json` | quit and run `opencode` again |
+| TTS is silent | `options.tts.enabled` is `false`, or the piper voice is missing | set `enabled: true` and install the voice under `~/.local/share/piper/ru_RU-<voice>-medium.onnx` |
 
 ## WSL2
 
@@ -135,6 +217,10 @@ WSL2 audio goes through WSLg/PulseAudio (`/mnt/wslg/PulseServer`). The microphon
   accuracy.
 - **No LLM normalization**: an extra link and extra latency; the transcript is easy to edit in the
   session anyway.
+- **TTS in pure TypeScript**: only the native `piper` binary is spawned — no Python, unlike the
+  Claude Code `speak-reply.py` approach this project replaced.
+- **TTS is opt-in**: `options.tts.enabled` defaults to `false`, so voice input works out of the box
+  without surprising anyone with sound.
 
 ## Acknowledgements
 
@@ -142,5 +228,4 @@ Inspired by [@renjfk](https://github.com/renjfk)'s
 [opencode-voice](https://github.com/renjfk/opencode-voice) — a full STT + TTS plugin for OpenCode
 that first showed me how the v2 TUI plugin API is put together. It was the working reference for the
 key details that aren't in the docs: the TUI-only `context.data`, the `parecord` recorder with its
-tiny latency buffer, and the `Ctrl+R` / `session.rename` conflict. If you need read-aloud (TTS) on
-top of input, that project is where it lives.
+tiny latency buffer, and the `Ctrl+R` / `session.rename` conflict.

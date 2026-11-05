@@ -7,3 +7,4 @@ whisper.cpp/
 # OS / editor noise
 .DS_Store
 *.swp
+.idea/
