@@ -135,3 +135,12 @@ WSL2 audio goes through WSLg/PulseAudio (`/mnt/wslg/PulseServer`). The microphon
   accuracy.
 - **No LLM normalization**: an extra link and extra latency; the transcript is easy to edit in the
   session anyway.
+
+## Acknowledgements
+
+Inspired by [@renjfk](https://github.com/renjfk)'s
+[opencode-voice](https://github.com/renjfk/opencode-voice) — a full STT + TTS plugin for OpenCode
+that first showed me how the v2 TUI plugin API is put together. It was the working reference for the
+key details that aren't in the docs: the TUI-only `context.data`, the `parecord` recorder with its
+tiny latency buffer, and the `Ctrl+R` / `session.rename` conflict. If you need read-aloud (TTS) on
+top of input, that project is where it lives.
