@@ -301,6 +301,10 @@ curl -fL -o ~/.local/share/silero/v4_ru.pt \
 that `aplay` plays directly. Override the python / speak.py paths with `OPENCODE_TTS_SILERO_PYTHON`
 and `OPENCODE_TTS_SILERO_SPEAK` if they are not in the default locations.
 
+> **License:** the Silero `v4_ru` model is published under CC BY-NC-SA 4.0 — **non-commercial use
+> only**. This plugin is MIT; the silero model itself is not. For commercial use, pick `piper` or
+> `rhvoice` instead.
+
 ## Model selection
 
 `tui.ts` looks for whisper models in this order: `ggml-small.bin` → `ggml-medium-q5_0.bin` →
