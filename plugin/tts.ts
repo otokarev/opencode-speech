@@ -122,11 +122,13 @@ const PROVIDERS: Record<string, Provider> = {
   },
   // RHVoice: `name` is a voice profile (anna, elena, irina, …). It reads text
   // from stdin and emits a WAV on stdout; aplay -t wav reads the header itself.
+  // -R 24000 sets the sample rate explicitly — without it RHVoice writes a
+  // streaming WAV with a garbage RIFF size and aplay fails to read the header.
   rhvoice: {
     build(name, speed) {
       return {
         command: rhvoiceBinary(),
-        args: ["-p", name, "-r", String(Math.round(speed * 100)), "-o", "/dev/stdout"],
+        args: ["-p", name, "-r", String(Math.round(speed * 100)), "-R", "24000", "-o", "/dev/stdout"],
         format: "wav",
       }
     },
@@ -221,7 +223,7 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     const p = player
     s.stdout.pipe(p.stdin)
     s.on("error", () => { try { p.kill("SIGTERM") } catch {} })
-    s.stdin.on("error", () => {}) // piper gone before write: swallow EPIPE
+    s.stdin.on("error", () => {}) // source gone before write: swallow EPIPE
     p.on("error", () => { try { s.kill("SIGTERM") } catch {} })
     p.on("close", () => {
       if (currentPlayer === p) currentPlayer = null
