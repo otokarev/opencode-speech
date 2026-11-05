@@ -3,11 +3,12 @@
 Voice input and output for [OpenCode](https://opencode.ai) v2 — a plugin that records audio from the
 microphone, transcribes it **locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp),
 sends the text straight into the current session, and can read the assistant's replies aloud with
-[piper](https://github.com/rhasspy/piper).
+[piper](https://github.com/rhasspy/piper) or [RHVoice](https://github.com/RHVoice/RHVoice).
 
 - **Speech-to-text (STT):** `Ctrl+R` records, whisper transcribes locally, the text goes straight
   into the session.
-- **Text-to-speech (TTS):** the last reply is spoken aloud via piper — pure TypeScript, no Python.
+- **Text-to-speech (TTS):** the last reply is spoken aloud via piper or RHVoice — pure TypeScript,
+  no Python.
 - **Local and private.** Both directions run on your machine — nothing leaves for the cloud, and
   there is no LLM normalization pass.
 - **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot;
@@ -127,6 +128,7 @@ defaults.
 | `whisper-cli` binary | `OPENCODE_STT_WHISPER_CLI` | `~/.local/bin/whisper-cli` |
 | models directory | `OPENCODE_STT_MODELS_DIR` | `~/.local/share/whisper-cpp` |
 | piper directory (TTS) | `OPENCODE_TTS_PIPER_DIR` | `~/.local/share/piper` |
+| rhvoice binary (TTS) | `OPENCODE_TTS_RHVOICE_BIN` | `RHVoice-test` (from `$PATH`) |
 
 ## Configuration
 
@@ -222,6 +224,31 @@ Then point `options.tts.voice` at it — the `piper:` prefix stays, only the nam
 The URL pattern below `<lang>/<voice>/<quality>` mirrors any
 [piper voice on Hugging Face](https://huggingface.co/rhasspy/piper-voices). Use `medium` for a good
 speed/quality balance; `high`/`low`/`x_low` also exist for most voices.
+
+### 5. RHVoice (alternative engine)
+
+The `rhvoice` provider is built in — it uses the native `RHVoice-test` binary (no Python). To use it,
+install RHVoice with the Russian voice(s) you want, then set `options.tts.voice` to `rhvoice:<profile>`
+(the profile is the bare voice name, e.g. `elena`, `anna`, `irina`):
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y rhvoice rhvoice-russian
+```
+
+```json
+"tts": { "voice": "rhvoice:elena", "enabled": true }
+```
+
+`speed` maps to RHVoice's `--rate` in percent (`speed: 1.0` → 100%), and the stream is a WAV on
+stdout that `aplay -t wav` reads directly. To list installed profiles:
+
+```bash
+RHVoice-test --help >/dev/null; ls /usr/share/RHVoice/voices/ 2>/dev/null || ls ~/.local/share/RHVoice/voices/
+```
+
+Adding another RHVoice voice is just installing it system-wide (apt or a voice package) — no code
+change: the provider passes the profile name straight through to `RHVoice-test -p <name>`.
 
 ## Model selection
 

@@ -1,7 +1,7 @@
-// piper-based TTS (text-to-speech) for the opencode-speech plugin.
+// TTS (text-to-speech) for the opencode-speech plugin.
 //
 // Speaks the last assistant reply aloud on session completion, in pure
-// TypeScript on top of the native `piper` binary — no Python in the chain.
+// TypeScript on top of native binaries (piper / rhvoice) — no Python in the chain.
 //
 // Configuration comes from the plugin's own `options` in cli.json, NOT from the
 // Claude Code python voice config (~/.claude/voice.json):
@@ -26,8 +26,8 @@
 // adding an engine is one entry in PROVIDERS and nothing else changes.
 //
 // Streamed pipeline (nothing from the reply reaches the shell as argv):
-//   piper --model <m> --output_raw --length_scale <1/speed> -q   ← text via stdin
-//     | aplay -q -r <sample_rate> -f S16_LE -t raw -
+//   piper   --model <m> --output_raw --length_scale <1/speed> -q  ← text via stdin → raw → aplay
+//   rhvoice -p <name> -r <speed%> -o /dev/stdout                 ← text via stdin → wav  → aplay
 import { spawn, type ChildProcess } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
@@ -76,12 +76,14 @@ const DEFAULTS: ResolvedTts = {
 // ---------------------------------------------------------------------------
 
 // Each provider knows the full way to run itself for a given (voice name, speed).
-// It returns a complete spawn command producing raw 16-bit mono audio on stdout,
-// plus the sample rate to feed aplay.
+// It returns a complete spawn command producing audio on stdout, plus how to feed
+// aplay. `format` tells aplay what the stream is: "raw" (bare PCM, needs `rate`)
+// or "wav" (RIFF header, aplay reads rate/channels from it).
 interface RunSpec {
   command: string
   args: string[]
-  rate: number
+  format: "raw" | "wav"
+  rate?: number // required for "raw"
 }
 
 type Provider = {
@@ -98,6 +100,12 @@ function sampleRateOf(modelJsonPath: string, fallback = 22050): number {
   }
 }
 
+// RHVoice binary and its voice directory (optional — only used when a rhvoice:
+// voice is requested). Resolved lazily so env changes after import still apply.
+function rhvoiceBinary(): string {
+  return process.env.OPENCODE_TTS_RHVOICE_BIN ?? "RHVoice-test"
+}
+
 const PROVIDERS: Record<string, Provider> = {
   piper: {
     build(name, speed) {
@@ -107,11 +115,22 @@ const PROVIDERS: Record<string, Provider> = {
       return {
         command: piperPath(),
         args: ["--model", model, "--output_raw", "--length_scale", (1 / speed).toFixed(3), "-q"],
+        format: "raw",
         rate,
       }
     },
   },
-  // rhvoice: { build(name, speed) { ... } }  ← future providers go here only
+  // RHVoice: `name` is a voice profile (anna, elena, irina, …). It reads text
+  // from stdin and emits a WAV on stdout; aplay -t wav reads the header itself.
+  rhvoice: {
+    build(name, speed) {
+      return {
+        command: rhvoiceBinary(),
+        args: ["-p", name, "-r", String(Math.round(speed * 100)), "-o", "/dev/stdout"],
+        format: "wav",
+      }
+    },
+  },
 }
 
 function resolve(voice: string, speed: number): RunSpec | null {
@@ -187,7 +206,10 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     stop()
 
     const source = spawn(run.command, run.args, { stdio: ["pipe", "pipe", "ignore"] })
-    const player = spawn("aplay", ["-q", "-r", String(run.rate), "-f", "S16_LE", "-t", "raw", "-"], {
+    const playerArgs = run.format === "wav"
+      ? ["-q", "-t", "wav", "-"]
+      : ["-q", "-r", String(run.rate), "-f", "S16_LE", "-t", "raw", "-"]
+    const player = spawn("aplay", playerArgs, {
       stdio: ["pipe", "ignore", "ignore"],
     })
     currentSource = source
