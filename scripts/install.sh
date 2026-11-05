@@ -21,7 +21,6 @@ PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 info()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 warn()  { printf '\033[1;33m==> skip\033[0m %s\n' "$*"; }
-err()   { printf '\033[1;31m==> error:\033[0m %s\n' "$*"; }
 
 # Clean the temp build dir even on early exit (set -e).
 trap 'rm -rf "$BUILD_DIR"' EXIT

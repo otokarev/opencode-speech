@@ -10,8 +10,8 @@ sends the text straight into the current session, and can read the assistant's r
 - **Text-to-speech (TTS):** the last reply is spoken aloud via piper — pure TypeScript, no Python.
 - **Local and private.** Both directions run on your machine — nothing leaves for the cloud, and
   there is no LLM normalization pass.
-- **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot; the
-  language is configurable in `tui.ts`).
+- **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot;
+  configurable via `options.stt.language`).
 
 ## How it works
 
@@ -39,7 +39,7 @@ cd opencode-speech
 
 `install.sh` does everything itself and is idempotent (safe to run again):
 
-1. installs system packages: `sox`, `pulseaudio-utils` (provides `parecord`), `cmake`,
+1. installs system packages: `pulseaudio-utils` (provides `parecord`), `cmake`,
    `build-essential`, `alsa-utils` (`aplay`);
 2. builds `whisper-cli` from source into `~/.local/bin/whisper-cli`
    (it is not packaged for Ubuntu's apt — building from source is the only sensible route);
@@ -56,7 +56,7 @@ The same result, step by step:
 
 ```bash
 # 1. system packages
-sudo apt-get install -y sox pulseaudio-utils cmake build-essential
+sudo apt-get install -y pulseaudio-utils cmake build-essential
 
 # 2. whisper-cli from source
 git clone --depth 1 https://github.com/ggml-org/whisper.cpp
@@ -80,7 +80,7 @@ Then in `~/.config/opencode/cli.json`:
       "package": "/absolute/path/to/opencode-speech/plugin",
       "options": {
         "tts": {
-          "voice": "irina",
+          "voice": "piper:irina",
           "speed": 1.0,
           "sentences": 2,
           "enabled": true
@@ -120,7 +120,7 @@ TTS is opt-in and configured in the plugin's `options.tts` block in `cli.json`:
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `false` | turn TTS on/off |
-| `voice` | `"irina"` | piper voice name → `ru_RU-<voice>-medium.onnx` |
+| `voice` | `"piper:irina"` | `<provider>:<name>`; provider selects the engine (see [TTS voice](#tts-setup)) |
 | `speed` | `1.0` | playback speed (≥ 0.1); mapped to piper's `--length_scale` as `1/speed` |
 | `sentences` | `2` | how many of the first sentences of the reply to read |
 

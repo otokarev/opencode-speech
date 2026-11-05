@@ -2,8 +2,7 @@
 // transcribe locally with whisper-cli, return the text.
 //
 // Mirrors tts.ts: a factory `makeRecorder` returns a `Recorder` object with a
-// lifecycle (start / stop / dispose). All state lives in the closure, so multiple
-// plugin instances are independent.
+// lifecycle (start / stop / dispose). All state lives in the closure.
 //
 // Configuration: options.stt (from cli.json) overrides the env-var-derived
 // defaults, mirroring how tts.ts reads options.tts:
@@ -64,6 +63,9 @@ const DEFAULTS: ResolvedStt = {
   timeoutMs: 60_000,
 }
 
+// A WAV file smaller than its 44-byte RIFF header has no audio payload.
+const WAV_HEADER_SIZE = 44
+
 // ---------------------------------------------------------------------------
 // Recorder
 // ---------------------------------------------------------------------------
@@ -76,12 +78,19 @@ export interface Recorder {
 }
 
 export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
-  const opts: ResolvedStt = { ...DEFAULTS, ...(pluginOptions?.stt ?? {}) }
+  const raw = pluginOptions?.stt ?? {}
+  const opts: ResolvedStt = {
+    ...DEFAULTS,
+    language: typeof raw.language === "string" && raw.language ? raw.language : DEFAULTS.language,
+    model: typeof raw.model === "string" && raw.model ? raw.model : DEFAULTS.model,
+    timeoutMs: Number.isFinite(raw.timeoutMs) && (raw.timeoutMs as number) > 0
+      ? (raw.timeoutMs as number)
+      : DEFAULTS.timeoutMs,
+  }
 
   const wav = path.join(os.tmpdir(), `opencode-speech-${process.pid}.wav`)
 
   let recProc: ChildProcess | null = null
-  let stopPromise: Promise<string | null> | null = null
 
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
@@ -99,7 +108,7 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
 
   function transcribe(): Promise<string | null> {
     if (!fs.existsSync(wav)) return Promise.resolve(null)
-    if (fs.statSync(wav).size <= 44) return Promise.resolve(null)
+    if (fs.statSync(wav).size <= WAV_HEADER_SIZE) return Promise.resolve(null)
     const model = findModelFile()
     if (!model) return Promise.resolve(null)
 
@@ -164,8 +173,10 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
   }
 
   function stop(): Promise<string | null> {
-    if (!stopPromise) stopPromise = doStop().finally(() => { stopPromise = null })
-    return stopPromise
+    // doStop() is idempotent (recProc === null -> return null), so no
+    // stopPromise caching here: a cached promise would leak a second parecord
+    // started right after the first stop (and duplicate the first transcript).
+    return doStop()
   }
 
   function isRecording(): boolean {

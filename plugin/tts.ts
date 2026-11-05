@@ -181,14 +181,19 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     const p = player
     s.stdout?.pipe(p.stdin)
     s.on("error", () => { try { p.kill("SIGTERM") } catch {} })
+    s.stdin.on("error", () => {}) // piper gone before write: swallow EPIPE
     p.on("error", () => { try { s.kill("SIGTERM") } catch {} })
     p.on("close", () => {
       if (currentPlayer === p) currentPlayer = null
       if (currentSource === s) currentSource = null
     })
 
-    s.stdin.write(phrase)
-    s.stdin.end()
+    try {
+      s.stdin.write(phrase)
+      s.stdin.end()
+    } catch {
+      try { p.kill("SIGTERM") } catch {}
+    }
   }
 
   function speakReply(text: string): void {

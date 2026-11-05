@@ -10,8 +10,8 @@
 // TTS: on `session.execution.succeeded` the last assistant reply is spoken aloud
 // via piper (pure TypeScript, no Python) — see tts.ts.
 import { Plugin } from "@opencode/plugin/tui"
-import { makeSpeaker, type Speaker } from "./tts"
-import { makeRecorder, type Recorder } from "./stt"
+import { makeSpeaker, type TtsOptions } from "./tts"
+import { makeRecorder, type SttOptions } from "./stt"
 
 // Minimal typed view of the opencode v2 TUI context (instead of `any`).
 interface SessionMessage {
@@ -34,7 +34,7 @@ interface TuiContext {
     on(event: "session.execution.succeeded", cb: (e: ExecutionSucceededEvent) => void): () => void
     session: { message: { list(sessionID: string): SessionMessage[] } }
   }
-  options: { tts?: unknown; stt?: unknown }
+  options: { tts?: TtsOptions; stt?: SttOptions }
 }
 
 export default Plugin.define({
@@ -58,8 +58,12 @@ export default Plugin.define({
         toast("Open a session before voice input", "warning")
         return
       }
-      await context.client.session.prompt({ sessionID, text })
-      toast("Voice prompt sent", "success")
+      try {
+        await context.client.session.prompt({ sessionID, text })
+        toast("Voice prompt sent", "success")
+      } catch {
+        toast("Failed to send voice prompt", "error")
+      }
     }
 
     context.keymap.layer(() => ({
@@ -73,9 +77,13 @@ export default Plugin.define({
           run: () => {
             if (recorder.isRecording()) {
               void (async () => {
-                toast("Transcribing...")
-                const text = await recorder.stop()
-                await sendTranscript(text)
+                try {
+                  toast("Transcribing...")
+                  const text = await recorder.stop()
+                  await sendTranscript(text)
+                } catch {
+                  toast("Voice input failed", "error")
+                }
               })()
             } else {
               if (recorder.start()) toast("Recording... press Ctrl+R again to stop")
