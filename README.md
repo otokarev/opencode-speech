@@ -59,7 +59,8 @@ terminals and never reaches the plugin).
 
 ## Requirements
 
-- **Linux** with PulseAudio (Ubuntu/Debian tested; WSL2 — see below).
+- **Linux** with PulseAudio. **Tested on Ubuntu 24.04 LTS (Noble Numbat).** Other distros should work
+  but are not verified — YMMV on the audio setup (PulseAudio/PipeWire), not the plugin itself.
 - **OpenCode ≥ 2.2** (the plugin targets the v2 TUI API; tested on 2.2.5).
 - `sudo` to install system packages (one time only).
 
