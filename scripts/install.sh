@@ -154,12 +154,12 @@ for p in cfg.get("plugins", []):
         seen = True
         p = {"package": plugin_dir, "options": p.get("options", {})}
         p["options"].setdefault("stt", {"language": "ru"})
-        # TTS is opt-in: add the settings block without forcing it on.
+        # TTS on by default; users can mute with Ctrl+T / /tts-toggle.
         p["options"].setdefault("tts", {
             "voice": "piper:irina",
             "speed": 1.0,
             "sentences": 2,
-            "enabled": False,
+            "enabled": True,
         })
     plugins.append(p)
 
@@ -168,7 +168,7 @@ if not seen:
         "package": plugin_dir,
         "options": {
             "stt": {"language": "ru"},
-            "tts": {"voice": "piper:irina", "speed": 1.0, "sentences": 2, "enabled": False},
+            "tts": {"voice": "piper:irina", "speed": 1.0, "sentences": 2, "enabled": True},
         },
     })
 

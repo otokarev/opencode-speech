@@ -90,8 +90,8 @@ cd opencode-speech
    (it is not packaged for Ubuntu's apt — building from source is the only sensible route);
 3. downloads the `ggml-small.bin` model (~466 MB) into `~/.local/share/whisper-cpp/`;
 4. installs the `piper` binary and the `ru_RU-irina-medium` voice (see [TTS setup](#tts-setup));
-5. registers the plugin in `~/.config/opencode/cli.json` (with an `options.tts` block, TTS off by
-   default) and frees the `Ctrl+R` hotkey (by default it is taken by session rename).
+5. registers the plugin in `~/.config/opencode/cli.json` (with an `options.tts` block, TTS on by
+   default; mute with `Ctrl+T`) and frees the `Ctrl+R` hotkey (by default it is taken by session rename).
 
 After installing, **restart opencode** and press `Ctrl+R` in the TUI.
 
@@ -177,7 +177,7 @@ keys have env-backed or sensible defaults):
 
 | Key | Default | Meaning |
 |---|---|---|
-| `enabled` | `false` | starting TTS state; `Ctrl+T`/`/tts-toggle` overrides it at runtime for the session |
+| `enabled` | `true` | starting TTS state; `Ctrl+T`/`/tts-toggle` overrides it at runtime for the session |
 | `voice` | `"piper:irina"` | `<provider>:<name>`; provider selects the engine (see [TTS voice](#tts-setup)) |
 | `speed` | `1.0` | playback speed (≥ 0.1); mapped to piper's `--length_scale` as `1/speed` |
 | `sentences` | `2` | how many of the first sentences of the reply to read |
