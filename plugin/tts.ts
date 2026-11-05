@@ -77,13 +77,13 @@ const DEFAULTS: ResolvedTts = {
 
 // Each provider knows the full way to run itself for a given (voice name, speed).
 // It returns a complete spawn command producing audio on stdout, plus how to feed
-// aplay. `format` tells aplay what the stream is: "raw" (bare PCM, needs `rate`)
-// or "wav" (RIFF header, aplay reads rate/channels from it).
+// aplay. `format`: "raw" (bare PCM) or "wav" (RIFF header that speak() strips).
+// `rate` is the stream's sample rate in both cases.
 interface RunSpec {
   command: string
   args: string[]
   format: "raw" | "wav"
-  rate?: number // required for "raw"
+  rate: number
 }
 
 type Provider = {
@@ -100,8 +100,8 @@ function sampleRateOf(modelJsonPath: string, fallback = 22050): number {
   }
 }
 
-// RHVoice binary and its voice directory (optional — only used when a rhvoice:
-// voice is requested). Resolved lazily so env changes after import still apply.
+// RHVoice binary (optional — only used when a rhvoice: voice is requested).
+// Resolved lazily so env changes after import still apply.
 function rhvoiceBinary(): string {
   return process.env.OPENCODE_TTS_RHVOICE_BIN ?? "RHVoice-test"
 }
@@ -121,15 +121,16 @@ const PROVIDERS: Record<string, Provider> = {
     },
   },
   // RHVoice: `name` is a voice profile (anna, elena, irina, …). It reads text
-  // from stdin and emits a WAV on stdout; aplay -t wav reads the header itself.
-  // -R 24000 sets the sample rate explicitly — without it RHVoice writes a
-  // streaming WAV with a garbage RIFF size and aplay fails to read the header.
+  // from stdin and emits a WAV on stdout ("-o -"). -R 24000 fixes the sample
+  // rate; RHVoice still writes a streaming WAV whose RIFF size is garbage, so
+  // speak() strips the 44-byte header and plays the payload as raw.
   rhvoice: {
     build(name, speed) {
       return {
         command: rhvoiceBinary(),
-        args: ["-p", name, "-r", String(Math.round(speed * 100)), "-R", "24000", "-o", "/dev/stdout"],
+        args: ["-p", name, "-r", String(Math.round(speed * 100)), "-R", "24000", "-o", "-"],
         format: "wav",
+        rate: 24000,
       }
     },
   },
@@ -208,10 +209,7 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     stop()
 
     const source = spawn(run.command, run.args, { stdio: ["pipe", "pipe", "ignore"] })
-    const playerArgs = run.format === "wav"
-      ? ["-q", "-t", "wav", "-"]
-      : ["-q", "-r", String(run.rate), "-f", "S16_LE", "-t", "raw", "-"]
-    const player = spawn("aplay", playerArgs, {
+    const player = spawn("aplay", ["-q", "-r", String(run.rate), "-f", "S16_LE", "-c", "1", "-t", "raw", "-"], {
       stdio: ["pipe", "ignore", "ignore"],
     })
     currentSource = source
@@ -221,7 +219,23 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     // from an already-replaced process cannot kill the new one.
     const s = source
     const p = player
-    s.stdout.pipe(p.stdin)
+    if (run.format === "wav") {
+      // RHVoice streams a WAV whose RIFF size is garbage; strip the 44-byte
+      // header and hand the raw PCM payload to aplay (rate is already explicit).
+      let header = Buffer.alloc(0)
+      let skipped = false
+      s.stdout.on("data", (d: Buffer) => {
+        if (skipped) { p.stdin.write(d); return }
+        header = Buffer.concat([header, d])
+        if (header.length > 44) {
+          skipped = true
+          p.stdin.write(header.subarray(44))
+          header = Buffer.alloc(0)
+        }
+      })
+    } else {
+      s.stdout.pipe(p.stdin)
+    }
     s.on("error", () => { try { p.kill("SIGTERM") } catch {} })
     s.stdin.on("error", () => {}) // source gone before write: swallow EPIPE
     p.on("error", () => { try { s.kill("SIGTERM") } catch {} })
