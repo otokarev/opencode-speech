@@ -13,6 +13,17 @@ sends the text straight into the current session, and can read the assistant's r
 - **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot;
   configurable via `options.stt.language`).
 
+## Quick reference
+
+| What | How |
+|---|---|
+| Record voice / send to session | `Ctrl+R` (or `/stt-record`) — press again to stop & send |
+| Mute / unmute read-aloud | `Ctrl+T` (or `/tts-toggle`) |
+| Enable read-aloud by default | `options.tts.enabled: true` in `cli.json` (see [Configuration](#configuration)) |
+
+`Ctrl+T` is used for the mute toggle (not `Ctrl+M`, which is indistinguishable from Enter in most
+terminals and never reaches the plugin).
+
 ## How it works
 
 - **STT:** `Ctrl+R` → `parecord` records 16 kHz mono → `whisper-cli` transcribes (`-l ru`, 8 threads)
@@ -119,7 +130,18 @@ defaults.
 
 ## Configuration
 
-TTS is opt-in and configured in the plugin's `options.tts` block in `cli.json`:
+Everything is configured in the plugin's `options` block in `cli.json`. Two groups, both optional (all
+keys have env-backed or sensible defaults):
+
+### STT — `options.stt`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `language` | `"ru"` | whisper language code passed as `-l` |
+| `model` | (first of the preference list) | explicit `.bin` file name in the models dir |
+| `timeoutMs` | `60000` | whisper-cli kill timeout |
+
+### TTS — `options.tts`
 
 | Key | Default | Meaning |
 |---|---|---|
