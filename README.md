@@ -46,6 +46,7 @@ terminals and never reaches the plugin).
 - [Troubleshooting](#troubleshooting)
 - [WSL2](#wsl2)
 - [Acknowledgements](#acknowledgements)
+- [License](#license)
 
 ## How it works
 
@@ -342,3 +343,8 @@ WSL2 audio goes through WSLg/PulseAudio (`/mnt/wslg/PulseServer`). The microphon
 
 Inspired by [@renjfk](https://github.com/renjfk)'s
 [opencode-voice](https://github.com/renjfk/opencode-voice).
+
+## License
+
+[MIT](LICENSE). Note: the external TTS engines have their own licenses — in particular the Silero
+`v4_ru` model is CC BY-NC-SA (non-commercial only), while piper and RHVoice are free for commercial use.
