@@ -37,7 +37,18 @@ terminals and never reaches the plugin).
 - **Linux** with PulseAudio (Ubuntu/Debian tested; WSL2 — see below).
 - **OpenCode ≥ 2.2** (the plugin targets the v2 TUI API; tested on 2.2.5).
 - `sudo` to install system packages (one time only).
-- **For TTS:** the `piper` binary + at least one Russian voice (see [TTS setup](#tts-setup)).
+
+`./scripts/install.sh` installs everything below automatically. Here is what each piece needs:
+
+| Engine | Install method | What it needs | Where it goes |
+|---|---|---|---|
+| **STT (whisper)** | build from source | `whisper-cli` binary + a `ggml-*.bin` model | `~/.local/bin/whisper-cli`, `~/.local/share/whisper-cpp/` |
+| **piper** | release tarball | `piper` binary + `ru_RU-<name>-medium.onnx` (+`.json`) | `~/.local/share/piper/` |
+| **RHVoice** | apt | `rhvoice` + `rhvoice-russian` | system (`RHVoice-test`) |
+| **silero** | venv + pip | python venv (torch) + `v4_ru.pt` model (+ the `silero/` scripts in this repo) | `~/.local/share/silero/` |
+
+Player (`aplay`) comes from `alsa-utils` (apt). The recognized voice is selected via
+`options.tts.voice` (`piper:irina`, `rhvoice:elena`, `silero:baya`, …) — see [Configuration](#configuration).
 
 ## Installation
 
