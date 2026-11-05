@@ -97,10 +97,14 @@ Then in `~/.config/opencode/cli.json`:
 |---|---|
 | Start recording | `Ctrl+R` (or `/stt-record`) |
 | Stop and send | `Ctrl+R` again — transcribes and sends to the session |
+| Toggle spoken replies | `Ctrl+T` (or `/tts-toggle`) — mute/unmute the read-aloud on the fly |
 
 The text goes into the session immediately, with no edit dialog: opencode v2 has no API to insert
 text into the input line (the composer-append API was removed). If you need editing, just fix the
 transcript inline in the already-open session.
+
+`Ctrl+T` (not `Ctrl+M`) is used for the mute toggle because `Ctrl+M` is indistinguishable from
+Enter (`\r`) in most terminals and never reaches the plugin.
 
 ## Path configuration
 
@@ -119,7 +123,7 @@ TTS is opt-in and configured in the plugin's `options.tts` block in `cli.json`:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `enabled` | `false` | turn TTS on/off |
+| `enabled` | `false` | starting TTS state; `Ctrl+T`/`/tts-toggle` overrides it at runtime for the session |
 | `voice` | `"piper:irina"` | `<provider>:<name>`; provider selects the engine (see [TTS voice](#tts-setup)) |
 | `speed` | `1.0` | playback speed (≥ 0.1); mapped to piper's `--length_scale` as `1/speed` |
 | `sentences` | `2` | how many of the first sentences of the reply to read |

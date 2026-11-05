@@ -145,10 +145,17 @@ export interface Speaker {
   speakReply(text: string): void
   stop(): void
   dispose(): void
+  /** Switch TTS on/off at runtime (starts from options.tts.enabled). */
+  toggle(): boolean
+  /** @returns current runtime state */
+  isEnabled(): boolean
 }
 
 export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
   const settings: ResolvedTts = { ...DEFAULTS, ...(pluginOptions?.tts ?? {}) }
+
+  // Runtime switch; seeded from the config flag, toggled via toggle()/hotkey.
+  let runtimeEnabled = settings.enabled
 
   let currentSource: ChildProcess | null = null
   let currentPlayer: ChildProcess | null = null
@@ -197,11 +204,21 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
   }
 
   function speakReply(text: string): void {
-    if (!settings.enabled) return
+    if (!runtimeEnabled) return
     const phrase = firstSentences(clean(text), settings.sentences)
     if (!phrase) return
     speak(phrase, settings.speed, settings.voice)
   }
 
-  return { speakReply, stop, dispose }
+  function toggle(): boolean {
+    runtimeEnabled = !runtimeEnabled
+    if (!runtimeEnabled) stop() // cut any in-progress speech when muting
+    return runtimeEnabled
+  }
+
+  function isEnabled(): boolean {
+    return runtimeEnabled
+  }
+
+  return { speakReply, stop, dispose, toggle, isEnabled }
 }

@@ -90,6 +90,16 @@ export default Plugin.define({
             }
           },
         },
+        {
+          id: "opencode-speech.toggle-tts",
+          title: "Voice: toggle spoken replies",
+          bind: "ctrl+t",
+          slash: { name: "tts-toggle" },
+          run: () => {
+            const on = speaker.toggle()
+            toast(on ? "Voice replies on" : "Voice replies off", "info")
+          },
+        },
       ],
     }))
 
