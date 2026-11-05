@@ -19,7 +19,7 @@ interface SessionMessage {
   content?: { type: string; text?: string }[]
 }
 
-interface ExecutionSucceededEvent {
+interface SessionEvent {
   data?: { sessionID?: string }
 }
 
@@ -31,7 +31,7 @@ interface TuiContext {
   client: { session: { prompt(opts: { sessionID: string; text: string }): Promise<unknown> } }
   keymap: { layer(fn: () => unknown): unknown }
   data: {
-    on(event: "session.execution.succeeded", cb: (e: ExecutionSucceededEvent) => void): () => void
+    on(event: "session.idle" | "session.execution.succeeded", cb: (e: SessionEvent) => void): () => void
     session: { message: { list(sessionID: string): SessionMessage[] } }
   }
   options: { tts?: TtsOptions; stt?: SttOptions }
@@ -103,9 +103,13 @@ export default Plugin.define({
       ],
     }))
 
-    // ---- glue: session completion -> TTS ----
-    const offTts = context.data.on("session.execution.succeeded", (event) => {
-      const sessionID = event?.data?.sessionID
+    // ---- glue: session idle -> TTS ----
+    // Speak only the FINAL reply: `session.idle` fires when the agent has
+    // finished and is waiting for the user, unlike the per-step
+    // `session.execution.succeeded` which fires after every intermediate tool
+    // call / sub-response and would read those out too.
+    const offTts = context.data.on("session.idle", (event: SessionEvent) => {
+      const sessionID = event?.data?.sessionID ?? currentSessionId(context)
       if (!sessionID) return
       const messages = context.data.session.message.list(sessionID) ?? []
       const text = lastAssistantText(messages)
@@ -119,6 +123,12 @@ export default Plugin.define({
     }
   },
 })
+
+// The current session id from the router (used when an event carries no sessionID).
+function currentSessionId(context: TuiContext): string | undefined {
+  const route = context.ui.router.current()
+  return route?.params?.sessionID ?? route?.sessionID
+}
 
 // Walk messages from the end back to the last "user" turn, collecting assistant
 // text parts (skip reasoning and tool parts).

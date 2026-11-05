@@ -29,9 +29,10 @@ terminals and never reaches the plugin).
 - **STT:** `Ctrl+R` → `parecord` records 16 kHz mono → `whisper-cli` transcribes (`-l ru`, 8 threads)
   → the text goes straight into the session. Stopping is manual (press `Ctrl+R` again): silence
   auto-stop is intentionally disabled because, in a noisy room, it chops phrases on micro-pauses.
-- **TTS:** on `session.execution.succeeded`, the last assistant reply is cleaned of markdown, cut to
-  the first `N` sentences, and piped through `piper` into `aplay`. Enabled via `options.tts` (see
-  [Configuration](#configuration)).
+- **TTS:** on `session.idle` (when the agent has finished and is waiting for you), the last reply is
+  cleaned of markdown, cut to the first `N` sentences, and piped through `piper` into `aplay`. Only the
+  final reply is spoken — intermediate steps/tool calls are not read out. Enabled via `options.tts`
+  (see [Configuration](#configuration)).
 
 ## Requirements
 
