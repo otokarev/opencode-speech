@@ -1,0 +1,9 @@
+# build artifacts and downloaded models — never commit these
+*.bin
+build/
+whisper.cpp/
+*.wav
+
+# OS / editor noise
+.DS_Store
+*.swp
