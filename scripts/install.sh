@@ -4,6 +4,7 @@
 #   - whisper-cli: built from source (not packaged for Ubuntu)
 #   - whisper model: ggml-small.bin from huggingface
 #   - piper binary (release tarball) + ru_RU-irina-medium voice
+#   - silero: python venv + torch (CPU) + v4_ru.pt model
 #
 # Idempotent: safe to re-run. Skips steps whose result is already present.
 set -euo pipefail
@@ -15,6 +16,9 @@ MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAM
 PIPER_DIR="$HOME/.local/share/piper"
 PIPER_BIN="$PIPER_DIR/piper/piper"
 PIPER_VOICE="ru_RU-irina-medium"
+SILERO_DIR="$HOME/.local/share/silero"
+SILERO_PYTHON="$SILERO_DIR/venv/bin/python"
+SILERO_MODEL="$SILERO_DIR/v4_ru.pt"
 BUILD_DIR="$(mktemp -d)"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -99,6 +103,24 @@ else
   curl -fL -o "$PIPER_DIR/$PIPER_VOICE.onnx.json" \
     "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/irina/medium/$PIPER_VOICE.onnx.json"
   info "voice saved: $PIPER_VOICE"
+fi
+
+# 3c. Silero (python venv + torch + model) ------------------------------------
+info "TTS: silero (venv + torch + v4_ru model)"
+
+if [ -x "$SILERO_PYTHON" ] && [ -s "$SILERO_MODEL" ]; then
+  warn "silero already present: $SILERO_PYTHON"
+else
+  if [ ! -x "$SILERO_PYTHON" ]; then
+    info "Creating python venv + installing torch (CPU)"
+    python3 -m venv "$SILERO_DIR/venv"
+    "$SILERO_PYTHON" -m pip install --quiet torch --index-url https://download.pytorch.org/whl/cpu
+  fi
+  if [ ! -s "$SILERO_MODEL" ]; then
+    info "Downloading silero v4_ru model"
+    curl -fL -o "$SILERO_MODEL" https://models.silero.ai/models/tts/ru/v4_ru.pt
+  fi
+  info "silero installed"
 fi
 
 # 4. Plugin wiring -----------------------------------------------------------

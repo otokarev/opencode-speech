@@ -32,6 +32,7 @@ import { spawn, type ChildProcess } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 import os from "node:os"
+import { fileURLToPath } from "node:url"
 
 // ---------------------------------------------------------------------------
 // Paths (env-overridable for portability)
@@ -84,6 +85,7 @@ interface RunSpec {
   args: string[]
   format: "raw" | "wav"
   rate: number
+  env?: Record<string, string>
 }
 
 type Provider = {
@@ -104,6 +106,26 @@ function sampleRateOf(modelJsonPath: string, fallback = 22050): number {
 // Resolved lazily so env changes after import still apply.
 function rhvoiceBinary(): string {
   return process.env.OPENCODE_TTS_RHVOICE_BIN ?? "RHVoice-test"
+}
+
+// Silero is a python (torch) model. The thin python wrappers (speak.py +
+// normalize.py) ship with this repo under ../silero; only the venv (torch) and
+// the v4_ru.pt model are external, installed per-machine under ~/.local/share/silero.
+function sileroPython(): string {
+  return process.env.OPENCODE_TTS_SILERO_PYTHON
+    ?? path.join(os.homedir(), ".local", "share", "silero", "venv", "bin", "python")
+}
+
+function sileroScript(): string {
+  // Resolve relative to this file: plugin/tts.ts -> ../silero/speak.py
+  const here = path.dirname(fileURLToPath(import.meta.url))
+  return process.env.OPENCODE_TTS_SILERO_SPEAK
+    ?? path.join(here, "..", "silero", "speak.py")
+}
+
+function sileroModel(): string {
+  return process.env.OPENCODE_TTS_SILERO_MODEL
+    ?? path.join(os.homedir(), ".local", "share", "silero", "v4_ru.pt")
 }
 
 const PROVIDERS: Record<string, Provider> = {
@@ -131,6 +153,23 @@ const PROVIDERS: Record<string, Provider> = {
         args: ["-p", name, "-r", String(Math.round(speed * 100)), "-R", "24000", "-o", "-"],
         format: "wav",
         rate: 24000,
+      }
+    },
+  },
+  // Silero v4_ru: `name` is a speaker (baya, kseniya, xenia, aidar, eugene).
+  // speak.py reads text from stdin and writes raw S16_LE mono PCM @ 48 kHz.
+  silero: {
+    build(name, speed) {
+      const python = sileroPython()
+      const script = sileroScript()
+      const model = sileroModel()
+      if (!fs.existsSync(python) || !fs.existsSync(script)) return null
+      return {
+        command: python,
+        args: [script, name, speed.toFixed(2)],
+        format: "raw",
+        rate: 48000,
+        env: { SILERO_MODEL: model },
       }
     },
   },
@@ -208,7 +247,10 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
 
     stop()
 
-    const source = spawn(run.command, run.args, { stdio: ["pipe", "pipe", "ignore"] })
+    const source = spawn(run.command, run.args, {
+      stdio: ["pipe", "pipe", "ignore"],
+      ...(run.env ? { env: { ...process.env, ...run.env } } : {}),
+    })
     const player = spawn("aplay", ["-q", "-r", String(run.rate), "-f", "S16_LE", "-c", "1", "-t", "raw", "-"], {
       stdio: ["pipe", "ignore", "ignore"],
     })

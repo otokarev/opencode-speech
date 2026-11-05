@@ -122,6 +122,8 @@ defaults.
 | models directory | `OPENCODE_STT_MODELS_DIR` | `~/.local/share/whisper-cpp` |
 | piper directory (TTS) | `OPENCODE_TTS_PIPER_DIR` | `~/.local/share/piper` |
 | rhvoice binary (TTS) | `OPENCODE_TTS_RHVOICE_BIN` | `RHVoice-test` (from `$PATH`) |
+| silero python (TTS) | `OPENCODE_TTS_SILERO_PYTHON` | `~/.local/share/silero/venv/bin/python` |
+| silero speak.py (TTS) | `OPENCODE_TTS_SILERO_SPEAK` | `../silero/speak.py` (in this repo) |
 
 ## Configuration
 
@@ -238,9 +240,35 @@ RHVoice-test --help >/dev/null; ls /usr/share/RHVoice/voices/ 2>/dev/null || ls 
 Adding another RHVoice voice is just installing it system-wide (apt or a voice package) — no code
 change: the provider passes the profile name straight through to `RHVoice-test -p <name>`.
 
+### 6. Silero (alternative engine)
+
+The `silero` provider drives the Silero v4_ru model (a python/torch model). The thin python wrappers —
+`speak.py` + `normalize.py` — ship with this repo under `silero/`. You provide the python environment
+and the model; both go under `~/.local/share/silero/`.
+
+Speakers: `baya`, `kseniya`, `xenia`, `aidar`, `eugene`.
+
+```bash
+# 1. python venv with torch
+python3 -m venv ~/.local/share/silero/venv
+~/.local/share/silero/venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# 2. the v4_ru model
+curl -fL -o ~/.local/share/silero/v4_ru.pt \
+  https://models.silero.ai/models/tts/ru/v4_ru.pt
+```
+
+```json
+"tts": { "voice": "silero:baya", "enabled": true }
+```
+
+`speed` maps to `speak.py <speaker> <speed>` (1.0 = natural pace); the output is raw PCM at 48 kHz
+that `aplay` plays directly. Override the python / speak.py paths with `OPENCODE_TTS_SILERO_PYTHON`
+and `OPENCODE_TTS_SILERO_SPEAK` if they are not in the default locations.
+
 ## Model selection
 
-`tui.ts` looks for models in this order: `ggml-small.bin` → `ggml-medium-q5_0.bin` →
+`tui.ts` looks for whisper models in this order: `ggml-small.bin` → `ggml-medium-q5_0.bin` →
 `ggml-large-v3-turbo-q5_0.bin`. **`small` is recommended** as the right balance:
 
 | Model | Time for a ~7–8 s phrase (16 cores) | Russian |
