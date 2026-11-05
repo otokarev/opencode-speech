@@ -93,7 +93,7 @@ cd opencode-speech
 5. registers the plugin in `~/.config/opencode/cli.json` (with an `options.tts` block, TTS on by
    default; mute with `Ctrl+T`) and frees the `Ctrl+R` hotkey (by default it is taken by session rename).
 
-After installing, **restart opencode** and press `Ctrl+R` in the TUI.
+When it finishes, **restart opencode** — the plugin then loads, and `Ctrl+R` / `Ctrl+T` are live in the TUI.
 
 ### Manual installation (without install.sh)
 
