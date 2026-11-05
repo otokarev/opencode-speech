@@ -7,10 +7,8 @@ sends the text straight into the current session, and can read the assistant's r
 
 - **Speech-to-text (STT):** `Ctrl+R` records, whisper transcribes locally, the text goes straight
   into the session.
-- **Text-to-speech (TTS):** the last reply is spoken aloud via piper or RHVoice — pure TypeScript,
-  no Python.
-- **Local and private.** Both directions run on your machine — nothing leaves for the cloud, and
-  there is no LLM normalization pass.
+- **Text-to-speech (TTS):** the last reply is spoken aloud via piper or RHVoice.
+- **Local and private.** Both directions run on your machine — nothing leaves for the cloud.
 - **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot;
   configurable via `options.stt.language`).
 
@@ -111,12 +109,7 @@ Then in `~/.config/opencode/cli.json`:
 | Stop and send | `Ctrl+R` again — transcribes and sends to the session |
 | Toggle spoken replies | `Ctrl+T` (or `/tts-toggle`) — mute/unmute the read-aloud on the fly |
 
-The text goes into the session immediately, with no edit dialog: opencode v2 has no API to insert
-text into the input line (the composer-append API was removed). If you need editing, just fix the
-transcript inline in the already-open session.
-
-`Ctrl+T` (not `Ctrl+M`) is used for the mute toggle because `Ctrl+M` is indistinguishable from
-Enter (`\r`) in most terminals and never reaches the plugin.
+The recognized text is sent straight into the session (no edit dialog); fix it inline if needed.
 
 ## Path configuration
 
@@ -169,15 +162,13 @@ curl -fL https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.t
   | tar xz -C ~/.local/share/piper
 ```
 
-This yields `~/.local/share/piper/piper/piper` (the executable) alongside its bundled libraries
-(`libonnxruntime.so`, `libespeak-ng.so`, `espeak-ng-data/`) and `piper_phonemize`. The plugin launches
-`~/.local/share/piper/piper/piper` and relies on those sibling libraries — do not move the binary out of
-that folder.
+This yields `~/.local/share/piper/piper/piper` (the executable) alongside its bundled libraries. The
+plugin launches `~/.local/share/piper/piper/piper` and relies on those sibling files — do not move the
+binary out of that folder.
 
 > The tarball retains the `piper/` directory when extracted, so extract into `~/.local/share/piper`
 > (one level up), **not** into `~/.local/share/piper/piper`. For other architectures pick
-> `piper_arm64.tar.gz` or `piper_armv7.tar.gz` from the same release. Note: v1.2.0's `espeak-ng` data
-> lives inside the tarball; `piper_phonemize` is a bundled helper, not a system package.
+> `piper_arm64.tar.gz` or `piper_armv7.tar.gz` from the same release.
 
 ### 2. Russian voice
 
@@ -198,9 +189,6 @@ TTS plays through `aplay` from the `alsa-utils` package:
 ```bash
 sudo apt-get install -y alsa-utils
 ```
-
-The TTS pipeline is pure TypeScript — the plugin spawns the native `piper` binary and `aplay`, with no
-Python anywhere in the TTS path.
 
 ### 4. Adding another piper voice
 
@@ -227,8 +215,8 @@ speed/quality balance; `high`/`low`/`x_low` also exist for most voices.
 
 ### 5. RHVoice (alternative engine)
 
-The `rhvoice` provider is built in — it uses the native `RHVoice-test` binary (no Python). To use it,
-install RHVoice with the Russian voice(s) you want, then set `options.tts.voice` to `rhvoice:<profile>`
+The `rhvoice` provider is built in — it uses the native `RHVoice-test` binary. To use it, install
+RHVoice with the Russian voice(s) you want, then set `options.tts.voice` to `rhvoice:<profile>`
 (the profile is the bare voice name, e.g. `elena`, `anna`, `irina`):
 
 ```bash
@@ -283,25 +271,7 @@ WSL2 audio goes through WSLg/PulseAudio (`/mnt/wslg/PulseServer`). The microphon
 `RDPSource` source. If `parecord` finds no devices: run `wsl --shutdown` from PowerShell, then check
 "Settings → Privacy & Security → Microphone" (allow desktop apps) and run `wsl --update`.
 
-## Why it's built this way
-
-- **`parecord`, not `sox`**: `sox` drops the PulseAudio buffer on stop (~1.2 s of the phrase tail);
-  `parecord --latency-msec=100` keeps the buffer tiny — only ≤0.1 s is lost.
-- **Manual stop instead of silence auto-stop**: in a noisy room a silence threshold either fails to
-  catch pauses or chops words.
-- **`small`, not `large-v3-turbo`**: ~8× faster (4–8 s vs 42 s) for a negligible loss of Russian
-  accuracy.
-- **No LLM normalization**: an extra link and extra latency; the transcript is easy to edit in the
-  session anyway.
-- **TTS in pure TypeScript**: only the native `piper` binary is spawned — no Python, unlike the
-  Claude Code `speak-reply.py` approach this project replaced.
-- **TTS is opt-in**: `options.tts.enabled` defaults to `false`, so voice input works out of the box
-  without surprising anyone with sound.
-
 ## Acknowledgements
 
 Inspired by [@renjfk](https://github.com/renjfk)'s
-[opencode-voice](https://github.com/renjfk/opencode-voice) — a full STT + TTS plugin for OpenCode
-that first showed me how the v2 TUI plugin API is put together. It was the working reference for the
-key details that aren't in the docs: the TUI-only `context.data`, the `parecord` recorder with its
-tiny latency buffer, and the `Ctrl+R` / `session.rename` conflict.
+[opencode-voice](https://github.com/renjfk/opencode-voice).
