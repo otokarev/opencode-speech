@@ -77,6 +77,9 @@ Player (`aplay`) comes from `alsa-utils` (apt). The recognized voice is selected
 
 ## Installation
 
+> This is a **TUI plugin** (`@opencode/plugin/tui`), not a V2 server plugin — so it is registered
+> through `cli.json`, not `.opencode/plugins/`. `install.sh` wires that up for you.
+
 ```bash
 git clone https://github.com/otokarev/opencode-speech.git
 cd opencode-speech
