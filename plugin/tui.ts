@@ -31,7 +31,7 @@ interface TuiContext {
   client: { session: { prompt(opts: { sessionID: string; text: string }): Promise<unknown> } }
   keymap: { layer(fn: () => unknown): unknown }
   data: {
-    on(event: "session.idle" | "session.execution.succeeded", cb: (e: SessionEvent) => void): () => void
+    on(event: "session.execution.succeeded", cb: (e: SessionEvent) => void): () => void
     session: { message: { list(sessionID: string): SessionMessage[] } }
   }
   options: { tts?: TtsOptions; stt?: SttOptions }
@@ -103,12 +103,11 @@ export default Plugin.define({
       ],
     }))
 
-    // ---- glue: session idle -> TTS ----
-    // Speak only the FINAL reply: `session.idle` fires when the agent has
-    // finished and is waiting for the user, unlike the per-step
-    // `session.execution.succeeded` which fires after every intermediate tool
-    // call / sub-response and would read those out too.
-    const offTts = context.data.on("session.idle", (event: SessionEvent) => {
+    // ---- glue: session completion -> TTS ----
+    // `session.execution.succeeded` is the only reliable "done" signal in the TUI
+    // context (session.idle never fires here). lastAssistantText takes just the
+    // final assistant message, so intermediate turns are not read out.
+    const offTts = context.data.on("session.execution.succeeded", (event: SessionEvent) => {
       const sessionID = event?.data?.sessionID ?? currentSessionId(context)
       if (!sessionID) return
       const messages = context.data.session.message.list(sessionID) ?? []
@@ -130,10 +129,10 @@ function currentSessionId(context: TuiContext): string | undefined {
   return route?.params?.sessionID ?? route?.sessionID
 }
 
-// Walk messages from the end back to the last "user" turn, collecting assistant
-// text parts (skip reasoning and tool parts).
+// Return text of the LAST assistant message only (skip reasoning/tool parts).
+// Walk from the end: the first assistant message before the user turn is the
+// final reply — do NOT concatenate earlier intermediate assistant turns.
 function lastAssistantText(messages: SessionMessage[]): string {
-  const parts: string[] = []
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     if (message?.type === "user") break
@@ -144,7 +143,7 @@ function lastAssistantText(messages: SessionMessage[]): string {
       .map((part) => (part.text ?? "").trim())
       .filter(Boolean)
       .join("\n")
-    if (text) parts.unshift(text)
+    if (text) return text
   }
-  return parts.join("\n")
+  return ""
 }
