@@ -200,6 +200,29 @@ sudo apt-get install -y alsa-utils
 The TTS pipeline is pure TypeScript — the plugin spawns the native `piper` binary and `aplay`, with no
 Python anywhere in the TTS path.
 
+### 4. Adding another piper voice
+
+No code change is needed — the `piper` provider derives the model path from the voice name
+(`ru_RU-<name>-medium.onnx`). To add a voice (e.g. `ksenia`):
+
+```bash
+# download the model + its config (the .json carries the sample rate)
+curl -fL -o ~/.local/share/piper/ru_RU-ksenia-medium.onnx \
+  https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/ksenia/medium/ru_RU-ksenia-medium.onnx
+curl -fL -o ~/.local/share/piper/ru_RU-ksenia-medium.onnx.json \
+  https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/ru/ru_RU/ksenia/medium/ru_RU-ksenia-medium.onnx.json
+```
+
+Then point `options.tts.voice` at it — the `piper:` prefix stays, only the name changes:
+
+```json
+"tts": { "voice": "piper:ksenia", "enabled": true }
+```
+
+The URL pattern below `<lang>/<voice>/<quality>` mirrors any
+[piper voice on Hugging Face](https://huggingface.co/rhasspy/piper-voices). Use `medium` for a good
+speed/quality balance; `high`/`low`/`x_low` also exist for most voices.
+
 ## Model selection
 
 `tui.ts` looks for models in this order: `ggml-small.bin` → `ggml-medium-q5_0.bin` →
