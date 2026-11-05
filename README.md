@@ -3,16 +3,25 @@
 Voice input and output for [OpenCode](https://opencode.ai) v2 — a plugin that records audio from the
 microphone, transcribes it **locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp),
 sends the text straight into the current session, and can read the assistant's replies aloud with
-[piper](https://github.com/rhasspy/piper) or [RHVoice](https://github.com/RHVoice/RHVoice).
+[piper](https://github.com/rhasspy/piper), [RHVoice](https://github.com/RHVoice/RHVoice), or
+[silero](https://github.com/snakers4/silero-models).
 
 - **Speech-to-text (STT):** `Ctrl+R` records, whisper transcribes locally, the text goes straight
   into the session.
-- **Text-to-speech (TTS):** the last reply is spoken aloud via piper or RHVoice.
+- **Text-to-speech (TTS):** the last reply is spoken aloud via piper, RHVoice, or silero.
 - **Local and private.** Both directions run on your machine — nothing leaves for the cloud.
 - **Russian out of the box** (the `small` whisper model — the speed/accuracy sweet spot;
   configurable via `options.stt.language`).
 
-## Quick reference
+## Quick start
+
+```bash
+git clone https://github.com/otokarev/opencode-speech.git
+cd opencode-speech
+./scripts/install.sh
+```
+
+Then **restart opencode**. Hotkeys and commands:
 
 | What | How |
 |---|---|
@@ -22,6 +31,21 @@ sends the text straight into the current session, and can read the assistant's r
 
 `Ctrl+T` is used for the mute toggle (not `Ctrl+M`, which is indistinguishable from Enter in most
 terminals and never reaches the plugin).
+
+## Contents
+
+- [Quick start](#quick-start)
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Path configuration](#path-configuration)
+- [Configuration](#configuration)
+- [TTS setup](#tts-setup)
+- [Model selection](#model-selection)
+- [Troubleshooting](#troubleshooting)
+- [WSL2](#wsl2)
+- [Acknowledgements](#acknowledgements)
 
 ## How it works
 
