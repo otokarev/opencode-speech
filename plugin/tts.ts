@@ -37,9 +37,14 @@ import os from "node:os"
 // Paths (env-overridable for portability)
 // ---------------------------------------------------------------------------
 
-const PIPER_DIR = process.env.OPENCODE_TTS_PIPER_DIR
-  ?? path.join(os.homedir(), ".local", "share", "piper")
-const PIPER = path.join(PIPER_DIR, "piper", "piper")
+function piperDir(): string {
+  return process.env.OPENCODE_TTS_PIPER_DIR
+    ?? path.join(os.homedir(), ".local", "share", "piper")
+}
+
+function piperPath(): string {
+  return path.join(piperDir(), "piper", "piper")
+}
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -96,11 +101,11 @@ function sampleRateOf(modelJsonPath: string, fallback = 22050): number {
 const PROVIDERS: Record<string, Provider> = {
   piper: {
     build(name, speed) {
-      const model = path.join(PIPER_DIR, `ru_RU-${name}-medium.onnx`)
+      const model = path.join(piperDir(), `ru_RU-${name}-medium.onnx`)
       if (!fs.existsSync(model)) return null
       const rate = sampleRateOf(model + ".json")
       return {
-        command: PIPER,
+        command: piperPath(),
         args: ["--model", model, "--output_raw", "--length_scale", (1 / speed).toFixed(3), "-q"],
         rate,
       }
@@ -152,7 +157,13 @@ export interface Speaker {
 }
 
 export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
-  const settings: ResolvedTts = { ...DEFAULTS, ...(pluginOptions?.tts ?? {}) }
+  const raw = pluginOptions?.tts ?? {}
+  const settings: ResolvedTts = {
+    voice: typeof raw.voice === "string" && raw.voice ? raw.voice : DEFAULTS.voice,
+    speed: Number.isFinite(raw.speed) && (raw.speed as number) >= 0.1 ? (raw.speed as number) : DEFAULTS.speed,
+    sentences: Number.isFinite(raw.sentences) && (raw.sentences as number) > 0 ? (raw.sentences as number) : DEFAULTS.sentences,
+    enabled: raw.enabled === true,
+  }
 
   // Runtime switch; seeded from the config flag, toggled via toggle()/hotkey.
   let runtimeEnabled = settings.enabled
@@ -186,7 +197,7 @@ export function makeSpeaker(pluginOptions?: { tts?: TtsOptions }): Speaker {
     // from an already-replaced process cannot kill the new one.
     const s = source
     const p = player
-    s.stdout?.pipe(p.stdin)
+    s.stdout.pipe(p.stdin)
     s.on("error", () => { try { p.kill("SIGTERM") } catch {} })
     s.stdin.on("error", () => {}) // piper gone before write: swallow EPIPE
     p.on("error", () => { try { s.kill("SIGTERM") } catch {} })

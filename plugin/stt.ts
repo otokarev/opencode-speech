@@ -65,6 +65,10 @@ const DEFAULTS: ResolvedStt = {
 
 // A WAV file smaller than its 44-byte RIFF header has no audio payload.
 const WAV_HEADER_SIZE = 44
+// whisper-cli CPU threads; more than the default 4 gives a ~2x speedup on 16-core.
+const WHISPER_THREADS = "8"
+// How long to wait for parecord to flush on SIGTERM before escalating to SIGKILL.
+const SIGKILL_GRACE_MS = 2500
 
 // ---------------------------------------------------------------------------
 // Recorder
@@ -88,8 +92,10 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
       : DEFAULTS.timeoutMs,
   }
 
-  const wav = path.join(os.tmpdir(), `opencode-speech-${process.pid}.wav`)
-
+  // Each recording gets its own file name, so a quick re-record cannot clash
+  // with a still-running transcription of the previous one (they shared one
+  // fixed path before, and the old transcription's unlink wiped the new file).
+  let wav = ""
   let recProc: ChildProcess | null = null
 
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -106,9 +112,9 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
     return names.length ? path.join(dir, names[0]) : null
   }
 
-  function transcribe(): Promise<string | null> {
-    if (!fs.existsSync(wav)) return Promise.resolve(null)
-    if (fs.statSync(wav).size <= WAV_HEADER_SIZE) return Promise.resolve(null)
+  function transcribe(file: string): Promise<string | null> {
+    if (!fs.existsSync(file)) return Promise.resolve(null)
+    if (fs.statSync(file).size <= WAV_HEADER_SIZE) return Promise.resolve(null)
     const model = findModelFile()
     if (!model) return Promise.resolve(null)
 
@@ -116,28 +122,23 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
       let stdout = ""
       const proc = spawn(
         whisperCliPath(),
-        ["-m", model, "-f", wav, "-l", opts.language, "-np", "-nt", "-t", "8"],
+        ["-m", model, "-f", file, "-l", opts.language, "-np", "-nt", "-t", WHISPER_THREADS],
         { stdio: ["ignore", "pipe", "ignore"] },
       )
-      proc.stdout?.on("data", (c) => { stdout += c.toString() })
+      proc.stdout.on("data", (c) => { stdout += c.toString() })
       const timer = setTimeout(() => { proc.kill("SIGKILL"); resolve(null) }, opts.timeoutMs)
       proc.on("error", () => { clearTimeout(timer); resolve(null) })
       proc.on("exit", () => {
         clearTimeout(timer)
-        resolve(
-          stdout
-            .replace(/\[.*?\]/g, "")
-            .replace(/\(.*?\)/g, "")
-            .replace(/\s+/g, " ")
-            .trim() || null,
-        )
+        // -nt already suppresses timestamps; strip only whitespace runs.
+        resolve(stdout.replace(/\s+/g, " ").trim() || null)
       })
     })
   }
 
   function start(): boolean {
     if (recProc) return false
-    try { fs.unlinkSync(wav) } catch {}
+    wav = path.join(os.tmpdir(), `opencode-speech-${process.pid}-${Date.now()}.wav`)
     recProc = spawn(
       "parecord",
       ["--record", "--rate=16000", "--channels=1", "--format=s16ne", "--latency-msec=100", wav],
@@ -150,6 +151,7 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
 
   async function doStop(): Promise<string | null> {
     const proc = recProc
+    const file = wav
     if (!proc) return null
 
     const exited = new Promise<void>((resolve) => {
@@ -159,16 +161,16 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
     })
 
     proc.kill("SIGTERM")
-    await Promise.race([exited, sleep(2500)])
+    await Promise.race([exited, sleep(SIGKILL_GRACE_MS)])
     if (proc.exitCode === null && proc.signalCode === null) {
       try { proc.kill("SIGKILL") } catch {}
       await exited
     }
 
     try {
-      return await transcribe()
+      return await transcribe(file)
     } finally {
-      try { fs.unlinkSync(wav) } catch {}
+      try { fs.unlinkSync(file) } catch {}
     }
   }
 
@@ -187,6 +189,10 @@ export function makeRecorder(pluginOptions?: { stt?: SttOptions }): Recorder {
     if (recProc) {
       try { recProc.kill("SIGTERM") } catch {}
       recProc = null
+    }
+    if (wav) {
+      try { fs.unlinkSync(wav) } catch {}
+      wav = ""
     }
   }
 

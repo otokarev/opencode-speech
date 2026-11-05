@@ -52,8 +52,7 @@ export default Plugin.define({
         toast("No speech detected", "warning")
         return
       }
-      const route = context.ui.router.current()
-      const sessionID = route?.params?.sessionID ?? route?.sessionID
+      const sessionID = currentSessionId(context)
       if (!sessionID) {
         toast("Open a session before voice input", "warning")
         return
@@ -96,8 +95,8 @@ export default Plugin.define({
           bind: "ctrl+t",
           slash: { name: "tts-toggle" },
           run: () => {
-            const on = speaker.toggle()
-            toast(on ? "Voice replies on" : "Voice replies off", "info")
+            speaker.toggle()
+            toast(speaker.isEnabled() ? "Voice replies on" : "Voice replies off", "info")
           },
         },
       ],
@@ -106,13 +105,18 @@ export default Plugin.define({
     // ---- glue: session completion -> TTS ----
     // `session.execution.succeeded` is the only reliable "done" signal in the TUI
     // context (session.idle never fires here). lastAssistantText takes just the
-    // final assistant message, so intermediate turns are not read out.
+    // final assistant message; a last-spoken guard avoids re-reading the same
+    // reply if `succeeded` fires more than once for one turn.
+    let lastSpoken = ""
     const offTts = context.data.on("session.execution.succeeded", (event: SessionEvent) => {
       const sessionID = event?.data?.sessionID ?? currentSessionId(context)
       if (!sessionID) return
       const messages = context.data.session.message.list(sessionID) ?? []
       const text = lastAssistantText(messages)
-      if (text) speaker.speakReply(text)
+      if (text && text !== lastSpoken) {
+        lastSpoken = text
+        speaker.speakReply(text)
+      }
     })
 
     return () => {

@@ -14,7 +14,6 @@ MODEL_NAME="ggml-small.bin"
 MODEL_URL="https://huggingface.co/ggerganov/whisper.cpp/resolve/main/${MODEL_NAME}"
 PIPER_DIR="$HOME/.local/share/piper"
 PIPER_BIN="$PIPER_DIR/piper/piper"
-PIPER_TARBALL="https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_amd64.tar.gz"
 PIPER_VOICE="ru_RU-irina-medium"
 BUILD_DIR="$(mktemp -d)"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -74,10 +73,21 @@ fi
 if [ -x "$PIPER_BIN" ]; then
   warn "piper already present: $PIPER_BIN"
 else
-  info "Downloading piper (release tarball)"
-  mkdir -p "$PIPER_DIR"
-  curl -fL "$PIPER_TARBALL" | tar xz -C "$PIPER_DIR"
-  info "piper installed to $PIPER_BIN"
+  case "$(uname -m)" in
+    x86_64|amd64)  PIPER_ARCH="amd64" ;;
+    aarch64|arm64) PIPER_ARCH="arm64" ;;
+    armv7*)        PIPER_ARCH="armv7" ;;
+    *) PIPER_ARCH="" ;;
+  esac
+  if [ -n "$PIPER_ARCH" ]; then
+    info "Downloading piper (release tarball, $PIPER_ARCH)"
+    mkdir -p "$PIPER_DIR"
+    curl -fL "https://github.com/rhasspy/piper/releases/download/v1.2.0/piper_${PIPER_ARCH}.tar.gz" \
+      | tar xz -C "$PIPER_DIR"
+    info "piper installed to $PIPER_BIN"
+  else
+    warn "unsupported arch; install piper by hand — see README 'TTS setup'"
+  fi
 fi
 
 if [ -s "$PIPER_DIR/$PIPER_VOICE.onnx" ] && [ -s "$PIPER_DIR/$PIPER_VOICE.onnx.json" ]; then
